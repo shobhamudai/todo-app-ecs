@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/todos")
+@RequestMapping("/api/todos") // FIX: The controller now responds to the /api prefix
 public class TodoController {
 
     private final TodoService todoService;

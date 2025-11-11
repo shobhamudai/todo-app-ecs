@@ -7,6 +7,7 @@ import * as ecs_patterns from 'aws-cdk-lib/aws-ecs-patterns';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
 import * as origins from 'aws-cdk-lib/aws-cloudfront-origins';
+import * as iam from 'aws-cdk-lib/aws-iam';
 
 export class EcsTodoStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
@@ -62,27 +63,58 @@ export class EcsTodoStack extends cdk.Stack {
       websiteIndexDocument: 'index.html',
       removalPolicy: cdk.RemovalPolicy.DESTROY,
       autoDeleteObjects: true,
+      blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
     });
 
     const originAccessIdentity = new cloudfront.OriginAccessIdentity(this, 'EcsOAI');
     websiteBucket.grantRead(originAccessIdentity);
 
-    const distribution = new cloudfront.Distribution(this, 'EcsDistribution', {
-        defaultBehavior: {
-            origin: new origins.S3Origin(websiteBucket, {
-                originAccessIdentity: originAccessIdentity,
-            }),
-            viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+    const distribution = new cloudfront.CloudFrontWebDistribution(this, 'EcsDistribution', {
+      originConfigs: [
+        {
+          s3OriginSource: {
+            s3BucketSource: websiteBucket,
+            originAccessIdentity: originAccessIdentity,
+          },
+          behaviors: [
+            {
+              isDefaultBehavior: true,
+              viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+            },
+          ],
         },
-        defaultRootObject: 'index.html',
+        {
+          customOriginSource: {
+            domainName: fargateService.loadBalancer.loadBalancerDnsName,
+            originProtocolPolicy: cloudfront.OriginProtocolPolicy.HTTP_ONLY,
+          },
+          behaviors: [
+            {
+              pathPattern: '/api/*',
+              viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+              allowedMethods: cloudfront.CloudFrontAllowedMethods.ALL,
+              cachedMethods: cloudfront.CloudFrontAllowedCachedMethods.GET_HEAD_OPTIONS,
+              forwardedValues: {
+                queryString: true,
+                cookies: { forward: 'all' },
+                headers: ['*'], // optional: forward all headers if your API needs them
+              },
+              defaultTtl: cdk.Duration.seconds(0),
+              minTtl: cdk.Duration.seconds(0),
+              maxTtl: cdk.Duration.seconds(0),
+            },
+          ],
+        },
+      ],
     });
+
 
     // --- STACK OUTPUTS ---
 
-    new cdk.CfnOutput(this, 'EcsLoadBalancerDNS', { value: fargateService.loadBalancer.loadBalancerDnsName });
+    new cdk.CfnOutput(this, 'EcsLoadBalancerDNS', { value: fargateService.loadBalancer.loadBalancerDnsName, description: 'The DNS of the internal Load Balancer' });
     new cdk.CfnOutput(this, 'EcsRepositoryUri', { value: repository.repositoryUri });
     new cdk.CfnOutput(this, 'EcsBucketName', { value: websiteBucket.bucketName });
     new cdk.CfnOutput(this, 'EcsDistributionId', { value: distribution.distributionId });
-    new cdk.CfnOutput(this, 'EcsDistributionDomainName', { value: distribution.distributionDomainName });
+    new cdk.CfnOutput(this, 'EcsDistributionDomainName', { value: distribution.distributionDomainName, description: 'The single public endpoint for the entire application' });
   }
 }
