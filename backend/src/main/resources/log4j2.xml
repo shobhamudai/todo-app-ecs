@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration status="INFO" packages="com.amazonaws.services.lambda.runtime.log4j2">
+    <Appenders>
+        <!-- AWS Lambda Log4j2 Appender -->
+        <Lambda name="CloudwatchLoggerStream">
+            <PatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss} [%-5p] %X{AWSRequestId} %c{1.}:%L - %m%n"/>
+        </Lambda>
+    </Appenders>
+
+    <Loggers>
+        <Root level="INFO">
+            <AppenderRef ref="CloudwatchLoggerStream"/>
+        </Root>
+
+        <Logger name="com.example"
+                level="DEBUG"
+                additivity="false">
+            <AppenderRef ref="CloudwatchLoggerStream"/>
+        </Logger>
+    </Loggers>
+</Configuration>
