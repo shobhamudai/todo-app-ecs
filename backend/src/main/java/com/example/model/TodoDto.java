@@ -6,6 +6,7 @@ import lombok.NoArgsConstructor;
 import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbAttribute;
 import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbBean;
 import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbPartitionKey;
+import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbSecondaryPartitionKey;
 
 @Data
 @NoArgsConstructor
@@ -17,6 +18,7 @@ public class TodoDto {
     private String task;
     private boolean completed;
     private Long createdAt;
+    private String userId; // Add userId field
 
     @DynamoDbPartitionKey
     @DynamoDbAttribute("id")
@@ -53,5 +55,16 @@ public class TodoDto {
 
     public void setCreatedAt(Long createdAt) {
         this.createdAt = createdAt;
+    }
+
+    // Define the secondary index for querying by userId
+    @DynamoDbSecondaryPartitionKey(indexNames = "userId-index")
+    @DynamoDbAttribute("userId")
+    public String getUserId() {
+        return this.userId;
+    }
+
+    public void setUserId(String userId) {
+        this.userId = userId;
     }
 }

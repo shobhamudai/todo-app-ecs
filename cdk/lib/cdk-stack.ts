@@ -8,10 +8,30 @@ import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
 import * as origins from 'aws-cdk-lib/aws-cloudfront-origins';
 import * as iam from 'aws-cdk-lib/aws-iam';
+import * as cognito from 'aws-cdk-lib/aws-cognito';
 
 export class EcsTodoStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
+
+    // --- USER AUTHENTICATION RESOURCES ---
+    const ecsUserPool = new cognito.UserPool(this, 'EcsTodoUserPool', {
+      userPoolName: 'EcsTodoUserPool',
+      selfSignUpEnabled: true,
+      accountRecovery: cognito.AccountRecovery.EMAIL_ONLY,
+      userVerification: {
+        emailStyle: cognito.VerificationEmailStyle.CODE,
+      },
+      autoVerify: { email: true },
+      standardAttributes: {
+        email: { required: true, mutable: false },
+      },
+    });
+
+    const ecsUserPoolClient = new cognito.UserPoolClient(this, "EcsUserPoolClient", {
+        userPool: ecsUserPool,
+    });
+
 
     // --- BACKEND RESOURCES ---
 
@@ -20,6 +40,12 @@ export class EcsTodoStack extends cdk.Stack {
       tableName: 'EcsTodos',
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
       removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
+    
+    // Add the GSI for querying by userId
+    ecsTodoTable.addGlobalSecondaryIndex({
+      indexName: 'userId-index',
+      partitionKey: { name: 'userId', type: dynamodb.AttributeType.STRING },
     });
 
     const repository = new ecr.Repository(this, 'EcsTodoAppRepository', {
@@ -40,20 +66,20 @@ export class EcsTodoStack extends cdk.Stack {
         containerPort: 8080,
         environment: {
           TABLE_NAME: ecsTodoTable.tableName,
+          // FIX: Add the missing environment variable for the Cognito Issuer URI
+          SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: `https://cognito-idp.${this.region}.amazonaws.com/${ecsUserPool.userPoolId}`,
         },
       },
       publicLoadBalancer: true,
-      // FIX: Set a grace period that is longer than the time needed for the health check
       healthCheckGracePeriod: cdk.Duration.seconds(150),
     });
 
     ecsTodoTable.grantReadWriteData(fargateService.taskDefinition.taskRole);
 
-    // FIX: Configure the Target Group health check to be less strict
     fargateService.targetGroup.configureHealthCheck({
       path: '/actuator/health',
-      interval: cdk.Duration.seconds(30), // Check more frequently
-      healthyThresholdCount: 2, // Require fewer successful checks
+      interval: cdk.Duration.seconds(30),
+      healthyThresholdCount: 2,
       timeout: cdk.Duration.seconds(5),
     });
 
@@ -97,7 +123,7 @@ export class EcsTodoStack extends cdk.Stack {
               forwardedValues: {
                 queryString: true,
                 cookies: { forward: 'all' },
-                headers: ['*'], // optional: forward all headers if your API needs them
+                headers: ['*'],
               },
               defaultTtl: cdk.Duration.seconds(0),
               minTtl: cdk.Duration.seconds(0),
@@ -111,10 +137,12 @@ export class EcsTodoStack extends cdk.Stack {
 
     // --- STACK OUTPUTS ---
 
-    new cdk.CfnOutput(this, 'EcsLoadBalancerDNS', { value: fargateService.loadBalancer.loadBalancerDnsName, description: 'The DNS of the internal Load Balancer' });
+    new cdk.CfnOutput(this, 'EcsLoadBalancerDNS', { value: fargateService.loadBalancer.loadBalancerDnsName });
     new cdk.CfnOutput(this, 'EcsRepositoryUri', { value: repository.repositoryUri });
     new cdk.CfnOutput(this, 'EcsBucketName', { value: websiteBucket.bucketName });
     new cdk.CfnOutput(this, 'EcsDistributionId', { value: distribution.distributionId });
-    new cdk.CfnOutput(this, 'EcsDistributionDomainName', { value: distribution.distributionDomainName, description: 'The single public endpoint for the entire application' });
+    new cdk.CfnOutput(this, 'EcsDistributionDomainName', { value: distribution.distributionDomainName });
+    new cdk.CfnOutput(this, "EcsUserPoolId", { value: ecsUserPool.userPoolId });
+    new cdk.CfnOutput(this, "EcsUserPoolClientId", { value: ecsUserPoolClient.userPoolClientId });
   }
 }

@@ -14,4 +14,5 @@ public class TodoBO {
     private String task;
     private boolean completed;
     private Long createdAt;
+    private String userId; // Add userId field
 }
