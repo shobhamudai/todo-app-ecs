@@ -22,16 +22,9 @@ public class TodoController {
         this.todoService = todoService;
     }
 
-    // This endpoint remains public
-    @GetMapping("/public")
-    public ResponseEntity<List<TodoBO>> getPublicTodos() {
-        log.info("Controller: Received request to get all public todos.");
-        return ResponseEntity.ok(todoService.getPublicTodos());
-    }
-
-    // This endpoint is for logged-in users to get their own todos
-    @GetMapping("/mine")
-    public ResponseEntity<List<TodoBO>> getMyTodos(@AuthenticationPrincipal Jwt jwt) {
+    // FIX: This is now the primary GET endpoint and requires authentication
+    @GetMapping
+    public ResponseEntity<List<TodoBO>> getTodosForUser(@AuthenticationPrincipal Jwt jwt) {
         String userId = jwt.getSubject();
         log.info("Controller: Received request to get todos for user [{}].", userId);
         return ResponseEntity.ok(todoService.getTodosForUser(userId));
@@ -50,7 +43,6 @@ public class TodoController {
     public ResponseEntity<TodoBO> updateTodo(@AuthenticationPrincipal Jwt jwt, @PathVariable String id, @RequestBody TodoBO todo) {
         String userId = jwt.getSubject();
         log.info("Controller: Received request to update todo with id [{}] for user [{}].", id, userId);
-        // The service layer should verify that the user owns this todo
         return ResponseEntity.ok(todoService.updateTodo(id, todo, userId));
     }
 
@@ -58,7 +50,6 @@ public class TodoController {
     public ResponseEntity<Void> deleteTodo(@AuthenticationPrincipal Jwt jwt, @PathVariable String id) {
         String userId = jwt.getSubject();
         log.info("Controller: Received request to delete todo with id [{}] for user [{}].", id, userId);
-        // The service layer should verify that the user owns this todo
         todoService.deleteTodo(id, userId);
         log.info("Controller: Successfully deleted todo with id [{}] for user [{}].", id, userId);
         return ResponseEntity.noContent().build();

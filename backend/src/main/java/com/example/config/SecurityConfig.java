@@ -26,21 +26,18 @@ public class SecurityConfig {
         http
                 .csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(authorize -> authorize
-                        // FIX: Only allow anonymous access to the public GET endpoint
-                        .requestMatchers(HttpMethod.GET, "/api/todos/public").permitAll()
                         // Allow health checks
                         .requestMatchers("/actuator/**").permitAll()
-                        // Require authentication for all other requests
+                        // FIX: Require authentication for all other requests.
+                        // The public GET endpoint is no longer permitted.
                         .anyRequest().authenticated()
                 )
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(withDefaults()));
         return http.build();
     }
 
-    // FIX: Explicitly define the JwtDecoder bean to solve the startup failure.
     @Bean
     public JwtDecoder jwtDecoder() {
-        // The .well-known/jwks.json endpoint is a standard part of OIDC providers like Cognito
         return NimbusJwtDecoder.withJwkSetUri(this.issuerUri + "/.well-known/jwks.json").build();
     }
 }

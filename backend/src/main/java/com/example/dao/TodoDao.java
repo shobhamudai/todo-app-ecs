@@ -11,7 +11,6 @@ import software.amazon.awssdk.enhanced.dynamodb.DynamoDbTable;
 import software.amazon.awssdk.enhanced.dynamodb.Key;
 import software.amazon.awssdk.enhanced.dynamodb.TableSchema;
 import software.amazon.awssdk.enhanced.dynamodb.model.QueryConditional;
-import software.amazon.awssdk.enhanced.dynamodb.model.ScanEnhancedRequest;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -29,18 +28,6 @@ public class TodoDao {
         this.todoTable = enhancedClient.table(tableName, TableSchema.fromBean(TodoDto.class));
         this.todoMapper = todoMapper;
         log.info("DAO initialized for table [{}].", tableName);
-    }
-
-    public List<TodoBO> getPublicTodos() {
-        log.info("DAO: Scanning for public todos (userId is null).");
-        // Scan the table and filter where userId is null
-        ScanEnhancedRequest scanRequest = ScanEnhancedRequest.builder().build();
-        return todoTable.scan(scanRequest)
-                .items()
-                .stream()
-                .filter(dto -> dto.getUserId() == null || dto.getUserId().isEmpty())
-                .map(todoMapper::toBo)
-                .collect(Collectors.toList());
     }
 
     public List<TodoBO> getTodosByUserId(String userId) {
