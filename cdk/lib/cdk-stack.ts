@@ -9,6 +9,7 @@ import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
 import * as origins from 'aws-cdk-lib/aws-cloudfront-origins';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as cognito from 'aws-cdk-lib/aws-cognito';
+import * as path from 'path'; // Import the 'path' module
 
 export class EcsTodoStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
@@ -32,7 +33,6 @@ export class EcsTodoStack extends cdk.Stack {
         userPool: ecsUserPool,
     });
 
-
     // --- BACKEND RESOURCES ---
 
     const ecsTodoTable = new dynamodb.Table(this, 'EcsTodoTable', {
@@ -42,12 +42,12 @@ export class EcsTodoStack extends cdk.Stack {
       removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
     
-    // Add the GSI for querying by userId
     ecsTodoTable.addGlobalSecondaryIndex({
       indexName: 'userId-index',
       partitionKey: { name: 'userId', type: dynamodb.AttributeType.STRING },
     });
 
+    // The ECR repository is still useful for storing the images CDK builds
     const repository = new ecr.Repository(this, 'EcsTodoAppRepository', {
       repositoryName: 'ecs-todo-app-backend',
       removalPolicy: cdk.RemovalPolicy.DESTROY,
@@ -62,11 +62,10 @@ export class EcsTodoStack extends cdk.Stack {
       memoryLimitMiB: 512,
       desiredCount: 1,
       taskImageOptions: {
-        image: ecs.ContainerImage.fromEcrRepository(repository, 'latest'),
+        image: ecs.ContainerImage.fromAsset(path.resolve(__dirname, '../../backend')),
         containerPort: 8080,
         environment: {
           TABLE_NAME: ecsTodoTable.tableName,
-          // FIX: Add the missing environment variable for the Cognito Issuer URI
           SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: `https://cognito-idp.${this.region}.amazonaws.com/${ecsUserPool.userPoolId}`,
         },
       },
@@ -83,7 +82,7 @@ export class EcsTodoStack extends cdk.Stack {
       timeout: cdk.Duration.seconds(5),
     });
 
-    // --- FRONTEND RESOURCES (SECURE PATTERN) ---
+    // --- FRONTEND RESOURCES ---
 
     const websiteBucket = new s3.Bucket(this, 'EcsWebsiteBucket', {
       websiteIndexDocument: 'index.html',
@@ -133,7 +132,6 @@ export class EcsTodoStack extends cdk.Stack {
         },
       ],
     });
-
 
     // --- STACK OUTPUTS ---
 
